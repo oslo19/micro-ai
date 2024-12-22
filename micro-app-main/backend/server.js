@@ -6,7 +6,7 @@ require('dotenv').config();
 const app = express();
 
 const corsOptions = {
-  origin: ['https://your-frontend-url.vercel.app', 'http://localhost:3000'],
+  origin: ['https://micro-ai-gray.vercel.app', 'http://localhost:3000'],
   credentials: true
 };
 
