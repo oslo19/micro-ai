@@ -7,15 +7,17 @@ const app = express();
 
 const corsOptions = {
   origin: [
-    'https://micro-ai-gray.vercel.app',
-    'https://micro-mi1leees1-oslo19s-projects.vercel.app',
-    'http://localhost:3000'
+    'https://frontend-two-nu-17.vercel.app',
+    'http://localhost:3000',
+    'https://frontend-two-nu-17.vercel.app/'  // with trailing slash just in case
   ],
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'OPTIONS']  // explicitly allow these methods
 };
 
 app.use(cors(corsOptions));
 app.use(express.json());
+app.options('*', cors(corsOptions));
 
 app.post('/generate-pattern', async (req, res) => {
     try {
@@ -213,17 +215,13 @@ app.get('/test-openai', async (req, res) => {
     }
 });
 
-app.get('/', (req, res) => {
-    res.json({
-        message: 'Pattern Generator API is running',
-        endpoints: {
-            generatePattern: '/generate-pattern',
-            getHint: '/get-hint',
-            testOpenAI: '/test-openai'
-        },
-        status: 'active'
-    });
-});
-
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({
+    error: 'Something broke!',
+    message: err.message
+  });
+});
