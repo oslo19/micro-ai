@@ -1,11 +1,11 @@
 import { Pattern } from '../types';
 import { generateAIHint } from '../utils/aiHelper';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 export async function getAIHint(pattern: Pattern, userAttempts: number) {
     try {
-        const response = await fetch(`${API_BASE_URL}/get-hint`, {
+        const response = await fetch(`${API_URL}/get-hint`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -43,7 +43,7 @@ interface PatternResponse {
 
 export const generatePattern = async (): Promise<PatternResponse> => {
     try {
-        const response = await fetch(`${API_BASE_URL}/generate-pattern`, {
+        const response = await fetch(`${API_URL}/generate-pattern`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
