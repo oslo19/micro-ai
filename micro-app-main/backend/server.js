@@ -5,22 +5,31 @@ require('dotenv').config();
 
 const app = express();
 
+// Development CORS setup
 const corsOptions = {
   origin: [
     'https://frontend-two-nu-17.vercel.app',
     'http://localhost:3000',
-    'https://frontend-two-nu-17.vercel.app/'  // with trailing slash just in case
+    'http://localhost:5173'  // Add your local development port
   ],
   credentials: true,
-  methods: ['GET', 'POST', 'OPTIONS']  // explicitly allow these methods
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 };
 
 app.use(cors(corsOptions));
 app.use(express.json());
+
+// Pre-flight requests
 app.options('*', cors(corsOptions));
 
 app.post('/generate-pattern', async (req, res) => {
     try {
+        if (!process.env.OPENAI_API_KEY) {
+            console.error('OpenAI API key is not set');
+            throw new Error('OpenAI API key is not configured');
+        }
+
         console.log('Making request to OpenAI...');
         
         const response = await axios.post(
@@ -54,7 +63,15 @@ app.post('/generate-pattern', async (req, res) => {
                     'Content-Type': 'application/json'
                 }
             }
-        );
+        ).catch(error => {
+            console.error('OpenAI API Error:', {
+                status: error.response?.status,
+                statusText: error.response?.statusText,
+                data: error.response?.data,
+                message: error.message
+            });
+            throw error;
+        });
 
         const text = response.data.choices[0].message.content.trim();
         const parts = text.split('|').map(part => part.trim());
@@ -90,12 +107,15 @@ app.post('/generate-pattern', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Full error:', error);
-        // Send a more specific error message
+        console.error('Full error:', {
+            message: error.message,
+            stack: error.stack,
+            response: error.response?.data
+        });
+        
         res.status(500).json({ 
             error: 'Error generating pattern',
             details: error.message,
-            // Provide fallback pattern in case of error
             fallback: {
                 sequence: '2, 4, 6, 8, ?',
                 answer: '10',
@@ -215,13 +235,13 @@ app.get('/test-openai', async (req, res) => {
     }
 });
 
+app.get('/debug', (req, res) => {
+    res.json({
+        hasOpenAIKey: !!process.env.OPENAI_API_KEY,
+        nodeEnv: process.env.NODE_ENV,
+        // Don't include the actual API key in the response
+    });
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({
-    error: 'Something broke!',
-    message: err.message
-  });
-});
