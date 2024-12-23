@@ -8,7 +8,7 @@ const app = express();
 // Development CORS setup
 const corsOptions = process.env.NODE_ENV === 'production' 
   ? {
-      origin: ['https://your-frontend-url.vercel.app'],
+      origin: ['https://frontend-two-nu-17.vercel.app'],
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization']
