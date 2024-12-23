@@ -217,5 +217,16 @@ app.get('/test-openai', async (req, res) => {
     }
 });
 
+app.get('/', (req, res) => {
+    res.json({ 
+        message: 'Pattern Generator API is running',
+        endpoints: {
+            generatePattern: 'POST /generate-pattern',
+            getHint: 'POST /get-hint',
+            testOpenAI: 'GET /test-openai'
+        }
+    });
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
