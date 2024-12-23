@@ -21,6 +21,22 @@ const corsOptions = process.env.NODE_ENV === 'production'
 app.use(cors(corsOptions));
 app.use(express.json());
 
+app.use((req, res, next) => {
+    console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+    next();
+});
+
+app.get('/', (req, res) => {
+    res.json({ 
+        message: 'Pattern Generator API is running',
+        endpoints: {
+            generatePattern: 'POST /generate-pattern',
+            getHint: 'POST /get-hint',
+            testOpenAI: 'GET /test-openai'
+        }
+    });
+});
+
 app.post('/generate-pattern', async (req, res) => {
     try {
         console.log('Making request to OpenAI...');
@@ -217,14 +233,10 @@ app.get('/test-openai', async (req, res) => {
     }
 });
 
-app.get('/', (req, res) => {
-    res.json({ 
-        message: 'Pattern Generator API is running',
-        endpoints: {
-            generatePattern: 'POST /generate-pattern',
-            getHint: 'POST /get-hint',
-            testOpenAI: 'GET /test-openai'
-        }
+app.use((req, res) => {
+    res.status(404).json({ 
+        error: 'Not Found',
+        message: `Route ${req.method} ${req.path} not found`
     });
 });
 
