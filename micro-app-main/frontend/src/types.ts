@@ -3,10 +3,10 @@ export type PatternType = 'numeric' | 'symbolic' | 'logical';
 export interface Pattern {
   sequence: string;
   answer: string;
-  hint: string;
-  explanation: string;
-  type: PatternType;
+  type: 'numeric' | 'symbolic' | 'logical';
   difficulty: 'easy' | 'medium' | 'hard';
+  hint: string;
+  explanation?: string;
 }
 
 export interface FeedbackState {

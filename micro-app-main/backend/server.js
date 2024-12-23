@@ -8,13 +8,18 @@ const app = express();
 // Development CORS setup
 const corsOptions = process.env.NODE_ENV === 'production' 
   ? {
-      origin: ['https://frontend-two-nu-17.vercel.app'],
+      origin: [
+        'https://frontend-two-nu-17.vercel.app',
+        'https://frontend-ltehs4ruz-oslo19s-projects.vercel.app',
+        'https://bakend-ashen.vercel.app',
+        'http://localhost:5173'
+      ],
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization']
     }
   : {
-      origin: true, // Allow all origins in development
+      origin: true,
       credentials: true
     };
 
@@ -41,28 +46,48 @@ app.post('/generate-pattern', async (req, res) => {
     try {
         console.log('Making request to OpenAI...');
         
+        const types = ['numeric', 'symbolic', 'logical'];
+        const requestedType = req.body.type || types[Math.floor(Math.random() * types.length)];
+        
         const response = await axios.post(
             'https://api.openai.com/v1/chat/completions',
             {
-                model: "gpt-3.5-turbo",
+                model: "gpt-4-turbo-preview",
                 messages: [
                     {
                         role: "system",
-                        content: `Generate a pattern following these rules:
-                            1. Choose a type: numeric (math), symbolic (shapes/symbols), or logical (letters/words)
-                            2. Create a sequence with 4 visible items and 1 hidden (marked as ?)
+                        content: `You are an advanced pattern generation system for college students.
+                            Generate a challenging college-level pattern of type: ${requestedType}
+
+                            For NUMERIC patterns:
+                            - Use advanced mathematical concepts (calculus, number theory, complex functions)
+                            - Include sequences that test mathematical understanding
+                            - Consider using series, progressions, or mathematical relationships
+
+                            For SYMBOLIC patterns:
+                            - Use mathematical or logical symbols (∑, ∏, ∫, ∂, ∮, ∪, ∩, ⊂, ⊃, ∈, ∉, etc.)
+                            - Create meaningful progressions in mathematical notation
+                            - Consider patterns from set theory, calculus, or logic
+
+                            For LOGICAL patterns:
+                            - Use programming concepts, scientific terms, or academic sequences
+                            - Create patterns that test understanding of relationships
+                            - Consider computer science, mathematics, or scientific concepts
+
+                            IMPORTANT: 
+                            1. Response must be in format: sequence|answer|hint|${requestedType}|difficulty
+                            2. Sequence should have 4 visible items and 1 hidden (?)
                             3. Make it challenging but solvable
-                            4. Include a clear pattern rule
-                            Respond EXACTLY in this format: sequence|answer|hint|type|difficulty
-                            Example: 2, 4, 6, 8, ?|10|Look for addition|numeric|medium`
+                            4. Ensure hint is helpful but doesn't give away the answer
+                            5. Difficulty should be medium or hard`
                     },
                     {
                         role: "user",
-                        content: "Create a new pattern. Be creative and vary between different types."
+                        content: `Generate a challenging college-level ${requestedType} pattern. Respond only with the pattern in the specified format.`
                     }
                 ],
-                temperature: 0.7,  // Reduced for more consistent formatting
-                max_tokens: 100,
+                temperature: 0.8,
+                max_tokens: 150,
                 presence_penalty: 0.6,
                 frequency_penalty: 0.6
             },
@@ -75,52 +100,87 @@ app.post('/generate-pattern', async (req, res) => {
         );
 
         const text = response.data.choices[0].message.content.trim();
+        console.log('AI Response:', text);
+
         const parts = text.split('|').map(part => part.trim());
 
-        // Validate response format
         if (parts.length !== 5) {
+            console.error('Invalid parts length:', parts.length, 'Parts:', parts);
             throw new Error('Invalid pattern format from AI');
         }
 
         const [sequence, answer, hint, type, difficulty] = parts;
 
-        // Ensure all required fields exist
         if (!sequence || !answer || !hint || !type || !difficulty) {
             throw new Error('Missing required pattern components');
         }
 
-        // Default to 'numeric' if type is invalid
-        const validTypes = ['numeric', 'symbolic', 'logical'];
-        const normalizedType = type.toLowerCase();
-        const finalType = validTypes.includes(normalizedType) ? normalizedType : 'numeric';
-
-        // Default to 'medium' if difficulty is invalid
-        const validDifficulties = ['easy', 'medium', 'hard'];
-        const normalizedDifficulty = difficulty.toLowerCase();
-        const finalDifficulty = validDifficulties.includes(normalizedDifficulty) ? normalizedDifficulty : 'medium';
-
         res.json({ 
             sequence,
             answer,
-            type: finalType,
-            difficulty: finalDifficulty,
+            type: requestedType,
+            difficulty: difficulty.toLowerCase(),
             hint
         });
 
     } catch (error) {
         console.error('Full error:', error);
-        // Send a more specific error message
-        res.status(500).json({ 
-            error: 'Error generating pattern',
-            details: error.message,
-            // Provide fallback pattern in case of error
-            fallback: {
-                sequence: '2, 4, 6, 8, ?',
-                answer: '10',
-                type: 'numeric',
-                difficulty: 'medium',
-                hint: 'Look for a constant difference'
+        
+        // Generate a fallback pattern using GPT-4
+        try {
+            const fallbackResponse = await axios.post(
+                'https://api.openai.com/v1/chat/completions',
+                {
+                    model: "gpt-4-turbo-preview",
+                    messages: [
+                        {
+                            role: "system",
+                            content: `Generate a simple but engaging ${requestedType} pattern for error recovery.
+                                Must follow format: sequence|answer|hint|${requestedType}|difficulty
+                                Keep it straightforward but interesting.`
+                        },
+                        {
+                            role: "user",
+                            content: "Generate a fallback pattern."
+                        }
+                    ],
+                    temperature: 0.5,
+                    max_tokens: 100
+                },
+                {
+                    headers: {
+                        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+                        'Content-Type': 'application/json'
+                    }
+                }
+            );
+
+            const fallbackText = fallbackResponse.data.choices[0].message.content.trim();
+            const fallbackParts = fallbackText.split('|').map(part => part.trim());
+
+            if (fallbackParts.length === 5) {
+                const [sequence, answer, hint, type, difficulty] = fallbackParts;
+                res.status(500).json({
+                    error: 'Error generating primary pattern',
+                    details: error.message,
+                    fallback: {
+                        sequence,
+                        answer,
+                        type: requestedType,
+                        difficulty: difficulty.toLowerCase(),
+                        hint
+                    }
+                });
+                return;
             }
+        } catch (fallbackError) {
+            console.error('Fallback generation failed:', fallbackError);
+        }
+
+        // If both primary and fallback generation fail, send a generic error
+        res.status(500).json({
+            error: 'Failed to generate pattern',
+            details: 'Both primary and fallback pattern generation failed'
         });
     }
 });
@@ -132,26 +192,32 @@ app.post('/get-hint', async (req, res) => {
         const response = await axios.post(
             'https://api.openai.com/v1/chat/completions',
             {
-                model: "gpt-3.5-turbo",
+                model: "gpt-4-turbo-preview",
                 messages: [
                     {
                         role: "system",
-                        content: `You are a pattern analysis assistant. Given a sequence and its type:
-                            1. Analyze the pattern structure
-                            2. Provide a helpful hint based on attempts made
-                            3. Don't reveal the answer directly
-                            4. Consider the pattern type (${pattern.type}) when giving hints`
+                        content: `You are an advanced pattern analysis assistant for college students.
+                            Given a sequence and its type:
+                            1. Analyze the pattern's underlying mathematical, logical, or symbolic structure
+                            2. Provide progressive hints based on:
+                               - Number of previous attempts
+                               - Pattern complexity
+                               - Academic level concepts
+                            3. Never reveal the answer directly
+                            4. Include relevant academic concepts in hints
+                            5. Guide students toward understanding the pattern's logic`
                     },
                     {
                         role: "user",
                         content: `Pattern: ${pattern.sequence}
                                 Type: ${pattern.type}
                                 Previous attempts: ${userAttempts}
+                                Difficulty: ${pattern.difficulty}
                                 Provide a helpful hint.`
                     }
                 ],
                 temperature: 0.7,
-                max_tokens: 50
+                max_tokens: 150
             },
             {
                 headers: {

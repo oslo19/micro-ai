@@ -41,13 +41,18 @@ interface PatternResponse {
     hint: string;
 }
 
-export const generatePattern = async (): Promise<PatternResponse> => {
+interface GeneratePatternOptions {
+    type?: 'numeric' | 'symbolic' | 'logical';
+}
+
+export const generatePattern = async (options: GeneratePatternOptions = {}): Promise<PatternResponse> => {
     try {
         const response = await fetch(`${API_URL}/generate-pattern`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
+            body: JSON.stringify(options),
         });
 
         const data = await response.json();
