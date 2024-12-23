@@ -8,13 +8,17 @@ const app = express();
 // Development CORS setup
 const corsOptions = process.env.NODE_ENV === 'production' 
   ? {
-      origin: process.env.ALLOWED_ORIGINS?.split(',') || ['https://frontend-two-nu-17.vercel.app'],
+      origin: [
+        'https://frontend-two-nu-17.vercel.app',
+        'https://frontend-ltehs4ruz-oslo19s-projects.vercel.app',  // Add your frontend domain
+        'https://bakend-ashen.vercel.app'
+      ],
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization']
     }
   : {
-      origin: true, // Allow all origins in development
+      origin: true,
       credentials: true
     };
 
