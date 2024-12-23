@@ -59,31 +59,45 @@ app.post('/generate-pattern', async (req, res) => {
                         content: `You are an advanced pattern generation system for college students.
                             Generate a challenging college-level pattern of type: ${requestedType}
 
-                            For NUMERIC patterns:
+                            ${requestedType === 'numeric' ? `
+                            NUMERIC Pattern Guidelines:
                             - Use advanced mathematical concepts (calculus, number theory, complex functions)
-                            - Include sequences that test mathematical understanding
-                            - Consider using series, progressions, or mathematical relationships
-
-                            For SYMBOLIC patterns:
-                            - Use mathematical or logical symbols (∑, ∏, ∫, ∂, ∮, ∪, ∩, ⊂, ⊃, ∈, ∉, etc.)
+                            - Include sequences involving mathematical operations
+                            - Examples: Fibonacci, prime factors, square roots, exponential growth
+                            ` : requestedType === 'symbolic' ? `
+                            SYMBOLIC Pattern Guidelines:
+                            - Use mathematical or logical symbols (∑, ∏, ∫, ∂, ∮, ∪, ∩, ⊂, ⊃, ∈, ∉)
                             - Create meaningful progressions in mathematical notation
-                            - Consider patterns from set theory, calculus, or logic
-
-                            For LOGICAL patterns:
-                            - Use programming concepts, scientific terms, or academic sequences
-                            - Create patterns that test understanding of relationships
-                            - Consider computer science, mathematics, or scientific concepts
+                            - Focus on mathematical symbols and operators
+                            ` : `
+                            LOGICAL Pattern Guidelines:
+                            - Use programming concepts (data types, keywords, operators)
+                            - Use scientific terminology sequences
+                            - Include computer science concepts
+                            - Use word relationships or technical terms
+                            - Examples: 
+                              * Programming: var -> let -> const -> class -> ?
+                              * Biology: DNA -> RNA -> mRNA -> tRNA -> ?
+                              * Computing: bit -> byte -> kilobyte -> megabyte -> ?
+                              * Web: HTML -> CSS -> JavaScript -> TypeScript -> ?
+                            `}
 
                             IMPORTANT: 
                             1. Response must be in format: sequence|answer|hint|${requestedType}|difficulty
                             2. Sequence should have 4 visible items and 1 hidden (?)
                             3. Make it challenging but solvable
-                            4. Ensure hint is helpful but doesn't give away the answer
-                            5. Difficulty should be medium or hard`
+                            4. For LOGICAL patterns, focus on word sequences, NOT numbers
+                            5. Difficulty should be medium or hard
+
+                            ${requestedType === 'logical' ? `
+                            REMINDER: Do NOT generate numeric sequences for logical patterns.
+                            Focus on words, terms, and concepts instead of numbers.
+                            ` : ''}`
                     },
                     {
                         role: "user",
-                        content: `Generate a challenging college-level ${requestedType} pattern. Respond only with the pattern in the specified format.`
+                        content: `Generate a challenging college-level ${requestedType} pattern. 
+                            ${requestedType === 'logical' ? 'Remember to use words or terms, NOT numbers.' : ''}`
                     }
                 ],
                 temperature: 0.8,
