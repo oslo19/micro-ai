@@ -16,22 +16,39 @@ app.use(cors({
 
 app.use(express.json());
 
-// Connect to MongoDB
+// Connect to MongoDB with better error handling
 let cachedDb = null;
 
 async function connectToDatabase() {
-  if (cachedDb) {
-    return cachedDb;
+  try {
+    if (cachedDb) {
+      console.log('Using cached database connection');
+      return cachedDb;
+    }
+    
+    console.log('Connecting to MongoDB...');
+    const db = await mongoose.connect(process.env.MONGODB_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+      serverSelectionTimeoutMS: 10000 // 10 seconds
+    });
+    
+    console.log('MongoDB Connected Successfully');
+    cachedDb = db;
+    return db;
+  } catch (error) {
+    console.error('MongoDB Connection Error:', error);
+    throw error;
   }
-  
-  const db = await mongoose.connect(process.env.MONGODB_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true
-  });
-  
-  cachedDb = db;
-  return db;
 }
+
+// Initialize connection on startup
+connectToDatabase().catch(console.error);
+
+// Basic test route
+app.get('/', (req, res) => {
+  res.json({ message: 'API is running' });
+});
 
 // Routes
 const userRoutes = require('./routes/userRoutes');
@@ -42,20 +59,14 @@ app.use('/users', userRoutes);
 app.use('/patterns', patternRoutes);
 app.use('/ai', aiRoutes);
 
-// Health check
-app.get('/api/health', async (req, res) => {
-  try {
-    await connectToDatabase();
-    res.json({ status: 'ok' });
-  } catch (error) {
-    res.status(500).json({ status: 'error', message: error.message });
-  }
-});
-
-// Error handling
+// Error handling middleware
 app.use((err, req, res, next) => {
-  console.error(err);
-  res.status(500).json({ error: 'Internal Server Error' });
+  console.error('Server Error:', err);
+  res.status(500).json({ 
+    error: 'Internal Server Error',
+    message: err.message,
+    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+  });
 });
 
 module.exports = app; 
