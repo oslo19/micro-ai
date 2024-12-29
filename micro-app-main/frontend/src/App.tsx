@@ -3,12 +3,35 @@ import { Brain } from 'lucide-react';
 import { InputGroup } from './components/InputGroup';
 import { Feedback } from './components/Feedback';
 import { AIAssistant } from './components/AIAssistant';
-import { Pattern, FeedbackState, AIHint } from './types';
+import { Pattern, FeedbackState, AIHint, DifficultyLevel, GeneratePatternOptions, PatternType } from './types';
 import { getAIHint, generatePattern } from './services/aiService';
 import { saveProgress, getProgress } from './utils/progressTracker';
 import { PatternDisplay } from './components/PatternDisplay';
+import { LoadingSpinner } from './components/LoadingSpinner';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Login } from './components/Login';
+import { Register } from './components/Register';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { ProgressDashboard } from './components/ProgressDashboard';
+import { Profile } from './components/Profile';
+import { Navbar } from './components/Navbar';
+import { ProgressProvider, useProgress } from './contexts/ProgressContext';
 
-function App() {
+// Protected Route wrapper component
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+  
+  if (loading) return <div>Loading...</div>;
+  
+  if (!user) {
+    return <Navigate to="/login" />;
+  }
+
+  return <>{children}</>;
+}
+
+// Main App content that requires authentication
+function MainApp() {
   const [currentPattern, setCurrentPattern] = useState<Pattern | null>(null);
   const [userAnswer, setUserAnswer] = useState('');
   const [score, setScore] = useState(0);
@@ -16,79 +39,126 @@ function App() {
   const [attempts, setAttempts] = useState(0);
   const [aiHint, setAIHint] = useState<AIHint | null>(null);
   const [userProgress, setUserProgress] = useState(getProgress());
-  const [selectedType, setSelectedType] = useState<'random' | 'numeric' | 'symbolic' | 'logical'>('random');
+  const [selectedType, setSelectedType] = useState<PatternType | 'random'>('random');
+  const [selectedDifficulty, setSelectedDifficulty] = useState<DifficultyLevel>('medium');
+  const [submitted, setSubmitted] = useState(false);
+  const [isHintLoading, setIsHintLoading] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const { user } = useAuth();
+  const { triggerRefresh } = useProgress();
+  const [puzzleHistory, setPuzzleHistory] = useState<string[]>([]);
 
   const handleGeneratePattern = async () => {
     try {
-      const options = selectedType === 'random' ? {} : { type: selectedType };
+      setIsGenerating(true);
+      const options: GeneratePatternOptions = {
+        difficulty: selectedDifficulty,
+        type: selectedType !== 'random' ? selectedType : undefined,
+        exclude: puzzleHistory,
+        userId: user?.uid
+      };
+      
       const newPattern = await generatePattern(options);
+      
+      setPuzzleHistory(prev => [...prev.slice(-9), newPattern.sequence]);
+      
       setCurrentPattern({
         sequence: newPattern.sequence,
         answer: newPattern.answer,
         type: newPattern.type,
         difficulty: newPattern.difficulty,
-        hint: '',
-        explanation: ''
+        hint: newPattern.hint,
+        explanation: newPattern.explanation || ''
       });
       setUserAnswer('');
       setFeedback({ message: '', type: null });
       setAttempts(0);
       setAIHint(null);
+      setSubmitted(false);
     } catch (error) {
-      console.error('Error generating pattern:', error);
+      console.error('Error:', error);
       setFeedback({
-        message: 'Failed to generate pattern. Please try again.',
+        message: 'Failed to generate pattern',
         type: 'error'
       });
+    } finally {
+      setIsGenerating(false);
     }
   };
 
-  const checkAnswer = async () => {
-    if (!currentPattern) {
-      alert('Please generate a pattern first.');
-      return;
-    }
+  const handleCheckAnswer = async () => {
+    if (!currentPattern || !user) return;
 
-    const newAttempts = attempts + 1;
-    setAttempts(newAttempts);
+    const isCorrect = userAnswer === currentPattern.answer;
+    const score = isCorrect ? Math.max(10 - (attempts * 2), 5) : 0;
 
-    const userAnswerClean = userAnswer.trim().toLowerCase();
-    const correctAnswerClean = (currentPattern.answer || '').toString().trim().toLowerCase();
-
-    const isCorrect = userAnswerClean === correctAnswerClean;
-
-    if (isCorrect) {
-      const points = Math.max(10 - (attempts * 2), 5);
-      setScore(prev => prev + points);
-      
-      const progress = saveProgress(points, newAttempts, true);
-      setUserProgress(progress);
-      
-      setFeedback({
-        message: 'Correct! Well done!',
-        type: 'success'
-      });
-      setAttempts(0);
-    } else {
-      const hint = await getAIHint(currentPattern, newAttempts);
-      setAIHint(hint);
-
-      setFeedback({
-        message: newAttempts === 3 ? 
-          'Still incorrect. You can now use the Show Answer button below.' : 
-          newAttempts === 1 ? 
-            'Not quite right. Try looking at the pattern more carefully!' : 
-            'Still incorrect. Check the AI hint below for guidance!',
-        type: 'error'
+    try {
+      // Update user progress
+      await fetch(`${import.meta.env.VITE_API_URL}/users/${user.uid}/progress`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          score,
+          isCorrect,
+          attempts: attempts + 1,
+          patternType: currentPattern.type
+        })
       });
 
-      saveProgress(0, newAttempts, false);
+      // If answer is correct, save to completed patterns
+      if (isCorrect) {
+        await fetch(`${import.meta.env.VITE_API_URL}/patterns/completed`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: user.uid,
+            sequence: currentPattern.sequence,
+            answer: currentPattern.answer,
+            type: currentPattern.type,
+            difficulty: currentPattern.difficulty
+          })
+        });
+      }
+
+      setSubmitted(true);
+      if (!currentPattern) return;
+
+      const newAttempts = attempts + 1;
+      setAttempts(newAttempts);
+      
+      if (isCorrect) {
+        const points = Math.max(10 - (attempts * 2), 5);
+        setScore(prev => prev + points);
+        
+        const progress = saveProgress(points, newAttempts, true);
+        setUserProgress(progress);
+        
+        setFeedback({
+          message: 'Correct! Well done!',
+          type: 'success'
+        });
+        setAttempts(0);
+        triggerRefresh();
+      } else {
+        setIsHintLoading(true);
+        const hint = await getAIHint(currentPattern, newAttempts);
+        setAIHint(hint);
+        setIsHintLoading(false);
+
+        setFeedback({
+          message: 'Incorrect. Try again!',
+          type: 'error'
+        });
+        triggerRefresh();
+      }
+    } catch (error) {
+      console.error('Error updating progress:', error);
     }
   };
 
   const handleKeyPress = (event: React.KeyboardEvent) => {
     if (event.key === 'Enter') {
-      checkAnswer();
+      handleCheckAnswer();
     }
   };
 
@@ -97,121 +167,203 @@ function App() {
       setFeedback({
         message: `The correct answer is: ${currentPattern.answer}`,
         type: 'error',
-        explanation: currentPattern.explanation || 'Keep practicing to improve your pattern recognition!'
+        explanation: currentPattern.explanation || 
+          `This ${currentPattern.type} pattern follows a ${currentPattern.difficulty} level progression. 
+          ${currentPattern.hint} Try to identify similar patterns in future questions.`
       });
     }
   };
 
+  const canShowAnswer = attempts >= 1 && !isHintLoading;
+
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
-      <div className="w-full max-w-2xl bg-white rounded-lg shadow-md p-4 md:p-6">
-        <div className="flex items-center justify-center gap-2 mb-4 md:mb-6">
-          <Brain className="w-6 h-6 md:w-8 md:h-8 text-emerald-500" />
-          <h1 className="text-2xl md:text-3xl font-bold text-emerald-500">Pattern Completion</h1>
-        </div>
+    <div className="min-h-screen bg-gray-100">
+      <div className="flex items-center justify-center p-4">
+        <div className="w-full max-w-2xl bg-white rounded-lg shadow-md p-4 md:p-6">
+          <div className="flex items-center justify-center gap-2 mb-4 md:mb-6">
+            <Brain className="w-6 h-6 md:w-8 md:h-8 text-emerald-500" />
+            <h1 className="text-2xl md:text-3xl font-bold text-emerald-500">Pattern Completion</h1>
+          </div>
 
-        <PatternDisplay pattern={currentPattern} />
+          <PatternDisplay pattern={currentPattern} isLoading={isGenerating} />
 
-        <div className="space-y-4">
-          {currentPattern && (
-            <InputGroup
-              pattern={currentPattern}
-              value={userAnswer}
-              onChange={setUserAnswer}
-              onSubmit={checkAnswer}
-              onKeyPress={handleKeyPress}
-              disabled={!currentPattern}
-            />
-          )}
+          <div className="space-y-4">
+            {currentPattern && (
+              <InputGroup
+                pattern={currentPattern}
+                value={userAnswer}
+                onChange={setUserAnswer}
+                onSubmit={handleCheckAnswer}
+                onKeyPress={handleKeyPress}
+                disabled={!currentPattern}
+                submitted={submitted}
+                isLoading={isGenerating}
+              />
+            )}
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-4">
+              <button
+                onClick={() => setSelectedType('random')}
+                className={`px-3 py-1 rounded ${
+                  selectedType === 'random' ? 'bg-emerald-500 text-white' : 'bg-gray-100'
+                }`}
+              >
+                Random
+              </button>
+              <button
+                onClick={() => setSelectedType('numeric')}
+                className={`px-3 py-1 rounded ${
+                  selectedType === 'numeric' ? 'bg-emerald-500 text-white' : 'bg-gray-100'
+                }`}
+              >
+                Numeric
+              </button>
+              <button
+                onClick={() => setSelectedType('symbolic')}
+                className={`px-3 py-1 rounded ${
+                  selectedType === 'symbolic' ? 'bg-emerald-500 text-white' : 'bg-gray-100'
+                }`}
+              >
+                Symbolic
+              </button>
+              <button
+                onClick={() => setSelectedType('shape')}
+                className={`px-3 py-1 rounded ${
+                  selectedType === 'shape' ? 'bg-emerald-500 text-white' : 'bg-gray-100'
+                }`}
+              >
+                Shape
+              </button>
+              <button
+                onClick={() => setSelectedType('logical')}
+                className={`px-3 py-1 rounded ${
+                  selectedType === 'logical' ? 'bg-emerald-500 text-white' : 'bg-gray-100'
+                }`}
+              >
+                Logical
+              </button>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 mb-4">
+              <button
+                onClick={() => setSelectedDifficulty('easy')}
+                className={`px-3 py-1 rounded transition-colors ${
+                  selectedDifficulty === 'easy' 
+                    ? 'bg-emerald-500 text-white' 
+                    : 'bg-gray-100'
+                }`}
+              >
+                Easy
+              </button>
+              <button
+                onClick={() => setSelectedDifficulty('medium')}
+                className={`px-3 py-1 rounded transition-colors ${
+                  selectedDifficulty === 'medium' 
+                    ? 'bg-emerald-500 text-white' 
+                    : 'bg-gray-100'
+                }`}
+              >
+                Medium
+              </button>
+              <button
+                onClick={() => setSelectedDifficulty('hard')}
+                className={`px-3 py-1 rounded transition-colors ${
+                  selectedDifficulty === 'hard' 
+                    ? 'bg-emerald-500 text-white' 
+                    : 'bg-gray-100'
+                }`}
+              >
+                Hard
+              </button>
+            </div>
+
             <button
-              onClick={() => setSelectedType('random')}
-              className={`px-3 py-1 rounded ${
-                selectedType === 'random' ? 'bg-emerald-500 text-white' : 'bg-gray-100'
-              }`}
+              onClick={handleGeneratePattern}
+              disabled={isGenerating}
+              className="w-full bg-emerald-500 text-white px-4 py-2 rounded-md hover:bg-emerald-600 transition-colors disabled:opacity-50 flex justify-center items-center gap-2"
             >
-              Random
+              {isGenerating ? (
+                <>
+                  <LoadingSpinner />
+                  Generating...
+                </>
+              ) : (
+                'Generate Pattern'
+              )}
             </button>
+
             <button
-              onClick={() => setSelectedType('numeric')}
-              className={`px-3 py-1 rounded ${
-                selectedType === 'numeric' ? 'bg-emerald-500 text-white' : 'bg-gray-100'
-              }`}
+              onClick={handleShowAnswer}
+              disabled={!canShowAnswer}
+              className={`w-full px-4 py-2 rounded-md transition-colors
+                ${canShowAnswer 
+                  ? 'bg-yellow-500 text-white hover:bg-yellow-600' 
+                  : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                }`}
             >
-              Numeric
-            </button>
-            <button
-              onClick={() => setSelectedType('symbolic')}
-              className={`px-3 py-1 rounded ${
-                selectedType === 'symbolic' ? 'bg-emerald-500 text-white' : 'bg-gray-100'
-              }`}
-            >
-              Symbolic
-            </button>
-            <button
-              onClick={() => setSelectedType('logical')}
-              className={`px-3 py-1 rounded ${
-                selectedType === 'logical' ? 'bg-emerald-500 text-white' : 'bg-gray-100'
-              }`}
-            >
-              Logical
+              {!canShowAnswer && isHintLoading 
+                ? 'Loading hint...' 
+                : attempts >= 1 
+                  ? 'Show Answer' 
+                  : 'Answer will be available after 1 attempt'}
             </button>
           </div>
 
-          <button
-            onClick={handleGeneratePattern}
-            className="w-full bg-emerald-500 text-white px-4 py-2 rounded-md hover:bg-emerald-600 transition-colors"
-          >
-            Generate Pattern
-          </button>
+          <Feedback feedback={feedback} />
+          <AIAssistant hint={aiHint} />
 
-          <button
-            onClick={handleShowAnswer}
-            disabled={attempts < 3}
-            className={`w-full px-4 py-2 rounded-md transition-colors
-              ${attempts >= 3 
-                ? 'bg-yellow-500 text-white hover:bg-yellow-600' 
-                : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-              }`}
-          >
-            {attempts >= 3 ? 'Show Answer' : `Show Answer (${3 - attempts} more attempts needed)`}
-          </button>
-        </div>
-
-        <Feedback feedback={feedback} />
-        <AIAssistant hint={aiHint} />
-
-        <div className="mt-4 text-center">
-          <div className="text-lg font-semibold">Score: {score}</div>
-          {userProgress && (
-            <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-              <h2 className="text-lg font-semibold mb-2">Your Progress</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                <div className="p-2 bg-white rounded shadow-sm">
-                  <p className="text-gray-600">Total Score</p>
-                  <p className="font-medium text-lg">{userProgress.totalScore}</p>
-                </div>
-                <div className="p-2 bg-white rounded shadow-sm">
-                  <p className="text-gray-600">Success Rate</p>
-                  <p className="font-medium text-lg">
-                    {Math.round((userProgress.correctAnswers / userProgress.gamesPlayed) * 100)}%
-                  </p>
-                </div>
-                <div className="p-2 bg-white rounded shadow-sm">
-                  <p className="text-gray-600">Games Played</p>
-                  <p className="font-medium text-lg">{userProgress.gamesPlayed}</p>
-                </div>
-                <div className="p-2 bg-white rounded shadow-sm">
-                  <p className="text-gray-600">Avg. Attempts</p>
-                  <p className="font-medium text-lg">{userProgress.averageAttempts.toFixed(1)}</p>
-                </div>
-              </div>
-            </div>
-          )}
+          <ProgressDashboard />
         </div>
       </div>
     </div>
+  );
+}
+
+function Layout({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  const location = useLocation();
+
+  const isAuthPage = location.pathname === '/login' || location.pathname === '/register';
+
+  return (
+    <>
+      {user && !isAuthPage && <Navbar />}
+      {children}
+    </>
+  );
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <ProgressProvider>
+        <Router>
+          <Layout>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+              <Route
+                path="/"
+                element={
+                  <ProtectedRoute>
+                    <MainApp />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/profile"
+                element={
+                  <ProtectedRoute>
+                    <Profile />
+                  </ProtectedRoute>
+                }
+              />
+              <Route path="*" element={<Navigate to="/login" />} />
+            </Routes>
+          </Layout>
+        </Router>
+      </ProgressProvider>
+    </AuthProvider>
   );
 }
 

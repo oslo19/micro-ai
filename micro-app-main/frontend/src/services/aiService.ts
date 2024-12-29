@@ -1,19 +1,58 @@
-import { Pattern } from '../types';
+import { Pattern, PatternType, DifficultyLevel, GeneratePatternOptions } from '../types';
 import { generateAIHint } from '../utils/aiHelper';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
-export async function getAIHint(pattern: Pattern, userAttempts: number) {
+export const generatePattern = async (options: GeneratePatternOptions = {}): Promise<Pattern> => {
     try {
-        const response = await fetch(`${API_URL}/get-hint`, {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+        const response = await fetch(`${API_URL}/patterns/generate`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-                pattern,
-                userAttempts
-            })
+            body: JSON.stringify(options),
+            signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.details || data.error || 'Failed to generate pattern');
+        }
+
+        return {
+            sequence: data.sequence,
+            answer: data.answer,
+            type: data.type as PatternType,
+            difficulty: data.difficulty as DifficultyLevel,
+            hint: data.hint || '',
+            explanation: data.explanation
+        };
+    } catch (error: unknown) {
+        if (error instanceof Error) {
+            if (error.name === 'AbortError') {
+                throw new Error('Request timed out');
+            }
+            console.error('Error generating pattern:', error);
+            throw error;
+        }
+        throw new Error('An unknown error occurred');
+    }
+};
+
+export const getAIHint = async (pattern: Pattern, userAttempts: number) => {
+    try {
+        const response = await fetch(`${API_URL}/api/patterns/hint`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ pattern, userAttempts }),
         });
 
         if (!response.ok) {
@@ -31,48 +70,4 @@ export async function getAIHint(pattern: Pattern, userAttempts: number) {
         console.error('Error getting AI hint:', error);
         return generateAIHint(pattern, userAttempts);
     }
-}
-
-interface PatternResponse {
-    sequence: string;
-    answer: string;
-    type: string;
-    difficulty: string;
-    hint: string;
-}
-
-interface GeneratePatternOptions {
-    type?: 'numeric' | 'symbolic' | 'logical';
-}
-
-export const generatePattern = async (options: GeneratePatternOptions = {}): Promise<PatternResponse> => {
-    try {
-        const response = await fetch(`${API_URL}/generate-pattern`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(options),
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-            if (data.fallback) {
-                return data.fallback;
-            }
-            throw new Error(data.details || 'Failed to generate pattern');
-        }
-
-        return {
-            sequence: data.sequence,
-            answer: data.answer,
-            type: data.type || 'numeric',
-            difficulty: data.difficulty || 'medium',
-            hint: data.hint || ''
-        };
-    } catch (error) {
-        console.error('Error generating pattern:', error);
-        throw error;
-    }
-}; 
+};

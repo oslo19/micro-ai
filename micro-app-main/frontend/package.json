@@ -10,10 +10,20 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@types/katex": "^0.16.7",
+    "@types/p5": "^1.7.6",
+    "better-react-mathjax": "^2.0.4-beta1",
+    "chart.js": "^4.4.7",
+    "firebase": "^11.1.0",
+    "katex": "^0.16.18",
     "lucide-react": "^0.344.0",
+    "mathlive": "^0.103.0",
     "openai": "^4.77.0",
+    "p5": "^1.11.2",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-chartjs-2": "^5.2.0",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^7.1.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",
