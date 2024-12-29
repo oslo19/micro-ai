@@ -50,12 +50,26 @@ async function connectToDatabase() {
 // Initialize connection on startup
 connectToDatabase().catch(console.error);
 
-// Basic test route with more info
+// Basic test route
 app.get('/', (req, res) => {
   res.json({ 
     status: 'online',
     message: 'Pattern Generator API is running',
     endpoints: {
+      users: '/users',
+      patterns: '/patterns',
+      ai: '/ai'
+    },
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Add a catch-all route for undefined routes
+app.use('*', (req, res) => {
+  res.status(404).json({
+    error: 'Not Found',
+    message: `Route ${req.method} ${req.originalUrl} not found`,
+    availableEndpoints: {
       users: '/users',
       patterns: '/patterns',
       ai: '/ai'

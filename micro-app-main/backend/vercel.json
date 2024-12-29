@@ -8,12 +8,8 @@
   ],
   "routes": [
     {
-      "src": "/api/(.*)",
-      "dest": "/api/index.js"
-    },
-    {
       "src": "/(.*)",
-      "dest": "/api/index.js",
+      "dest": "api/index.js",
       "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
       "headers": {
         "Access-Control-Allow-Origin": "https://frontend-two-nu-17.vercel.app",
