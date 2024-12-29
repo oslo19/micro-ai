@@ -1,29 +1,18 @@
 import { Pattern, PatternType, DifficultyLevel, GeneratePatternOptions } from '../types';
 import { generateAIHint } from '../utils/aiHelper';
 
-const API_URL = import.meta.env.VITE_API_URL.replace(/\/+$/, '').trim();
-
-const fetchWithRetry = async (url: string, options: RequestInit) => {
-    const cleanUrl = `${API_URL}${url}`.replace(/([^:]\/)\/+/g, "$1");
-    
-    const response = await fetch(cleanUrl, {
-        ...options,
-        credentials: 'include',
-        headers: {
-            'Content-Type': 'application/json',
-            ...options.headers
-        }
-    });
-    return response;
-};
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 export const generatePattern = async (options: GeneratePatternOptions = {}): Promise<Pattern> => {
     try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 15000);
 
-        const response = await fetchWithRetry(`/patterns/generate`, {
+        const response = await fetch(`${API_URL}/patterns/generate`, {
             method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
             body: JSON.stringify(options),
             signal: controller.signal
         });
