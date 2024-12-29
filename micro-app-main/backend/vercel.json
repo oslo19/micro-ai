@@ -11,5 +11,9 @@
       "src": "/(.*)",
       "dest": "server.js"
     }
-  ]
+  ],
+  "env": {
+    "MONGODB_URI": "@mongodb_uri",
+    "OPENAI_API_KEY": "@openai_api_key"
+  }
 } 
