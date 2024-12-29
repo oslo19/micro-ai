@@ -3,17 +3,26 @@ import { generateAIHint } from '../utils/aiHelper';
 
 const API_URL = import.meta.env.VITE_API_URL.replace(/\/+$/, '').trim();
 
+const fetchWithRetry = async (url: string, options: RequestInit) => {
+    const cleanUrl = url.replace(/\/+/g, '/');
+    const response = await fetch(cleanUrl, {
+        ...options,
+        credentials: 'include',
+        headers: {
+            'Content-Type': 'application/json',
+            ...options.headers
+        }
+    });
+    return response;
+};
+
 export const generatePattern = async (options: GeneratePatternOptions = {}): Promise<Pattern> => {
     try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 15000);
 
-        const url = `${API_URL}/patterns/generate`.replace(/\/+/g, '/');
-        const response = await fetch(url, {
+        const response = await fetchWithRetry(`${API_URL}/patterns/generate`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
             body: JSON.stringify(options),
             signal: controller.signal
         });
