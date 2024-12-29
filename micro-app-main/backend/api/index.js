@@ -11,10 +11,16 @@ app.use(cors({
     'https://frontend-two-nu-17.vercel.app',
     'http://localhost:5173'
   ],
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  optionsSuccessStatus: 200
 }));
 
 app.use(express.json());
+
+// Add preflight handling
+app.options('*', cors());
 
 // Connect to MongoDB with better error handling
 let cachedDb = null;
