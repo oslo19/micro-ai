@@ -45,9 +45,35 @@ async function connectToDatabase() {
 // Initialize connection on startup
 connectToDatabase().catch(console.error);
 
-// Basic test route
+// Basic test route with more info
 app.get('/', (req, res) => {
-  res.json({ message: 'API is running' });
+  res.json({ 
+    status: 'online',
+    message: 'Pattern Generator API is running',
+    endpoints: {
+      users: '/users',
+      patterns: '/patterns',
+      ai: '/ai'
+    }
+  });
+});
+
+// Health check endpoint
+app.get('/health', async (req, res) => {
+  try {
+    await connectToDatabase();
+    res.json({ 
+      status: 'healthy',
+      database: 'connected',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      status: 'error',
+      database: 'disconnected',
+      error: error.message 
+    });
+  }
 });
 
 // Routes
